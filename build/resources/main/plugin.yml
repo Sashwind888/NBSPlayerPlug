@@ -1,0 +1,14 @@
+name: nbsplayer
+version: '1.0-SNAPSHOT'
+main: sashwind.mc.plugin.nbsplayer.Nbsplayer
+api-version: '1.18'
+load: STARTUP
+authors: [ Sashwind ]
+
+commands:
+  nbsplay:
+    description: NBS播放控制
+    usage: /<command>
+    aliases: [ nbs, nbsplay ]   # 别名中可不必重复命令本身
+    permission: nbsplay.use
+    permission-message: 你没有权限使用此命令！
