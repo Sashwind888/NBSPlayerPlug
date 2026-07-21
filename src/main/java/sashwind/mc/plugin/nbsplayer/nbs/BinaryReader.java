@@ -16,6 +16,11 @@ public class BinaryReader implements AutoCloseable {
         return stream.readByte();
     }
 
+    /** 读取无符号字节，作为 int 返回 (0~255) */
+    public int readUnsignedByte() throws IOException {
+        return stream.readUnsignedByte();
+    }
+
     public short readShort() throws IOException {
         // 读入大端序的 2 字节，转换为小端序
         short bigEndian = stream.readShort();
