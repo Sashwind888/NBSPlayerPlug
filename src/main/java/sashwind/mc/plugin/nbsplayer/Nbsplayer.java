@@ -1,6 +1,5 @@
 package sashwind.mc.plugin.nbsplayer;
 
-
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class Nbsplayer extends JavaPlugin {
@@ -24,21 +23,24 @@ public final class Nbsplayer extends JavaPlugin {
 
         CommandExec executor = new CommandExec();
 
-        getCommand("nbsplay").setExecutor(executor);
-        getCommand("nbsplay").setTabCompleter(executor);
+        if (getCommand("nbsplay") != null) {
+            getCommand("nbsplay").setExecutor(executor);
+            getCommand("nbsplay").setTabCompleter(executor);
+        }
 
-        getLogger().info("Note Block Studio 播放器完成...");
-
+        getLogger().info("Note Block Studio 播放器完成... (Folia Supported)");
     }
 
     @Override
     public void onDisable() {
+        // 停止所有播放及任务
+        CommandExec.stopAll();
         // 关闭前保存所有播放器数据
         CommandExec.savePlayers();
         getLogger().info("Note Block Studio 播放器关闭");
     }
 
-    public static Nbsplayer getInstance() {return instance;}
-
-
+    public static Nbsplayer getInstance() {
+        return instance;
+    }
 }

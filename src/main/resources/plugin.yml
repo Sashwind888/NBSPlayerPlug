@@ -2,6 +2,7 @@ name: nbsplayer
 version: '2.0'
 main: sashwind.mc.plugin.nbsplayer.Nbsplayer
 api-version: '1.18'
+folia-supported: true
 load: STARTUP
 authors: [ Sashwind ]
 

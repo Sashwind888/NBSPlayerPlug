@@ -10,26 +10,48 @@ import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
 public class CommandExec implements CommandExecutor, TabCompleter {
 
-  // 存储普通播放模式（个人播放）
-  private static final Map<UUID, MusicPlay> musicPlayMap = new HashMap<>();
-  // 存储所有播放器（MusicPlayer 实例）
-  private static final List<MusicPlayer> musicPlayerList = new ArrayList<>();
+  // 存储普通播放模式（个人播放），使用线程安全并发 Map
+  private static final Map<UUID, MusicPlay> musicPlayMap = new ConcurrentHashMap<>();
+  // 存储所有播放器（MusicPlayer 实例），使用线程安全并发 List
+  private static final List<MusicPlayer> musicPlayerList = new CopyOnWriteArrayList<>();
 
   // ---------- 持久化接口（供 Nbsplayer 调用） ----------
   /** 从配置文件加载所有播放器 */
-  public static void loadPlayers() {
+  public static synchronized void loadPlayers() {
     List<MusicPlayer> loaded = PlayerDataManager.loadAll();
     musicPlayerList.clear();
     musicPlayerList.addAll(loaded);
   }
 
   /** 保存所有播放器到配置文件 */
-  public static void savePlayers() {
-    PlayerDataManager.saveAll(musicPlayerList);
+  public static synchronized void savePlayers() {
+    PlayerDataManager.saveAll(new ArrayList<>(musicPlayerList));
+  }
+
+  /** 停止所有播放 */
+  public static synchronized void stopAll() {
+    for (MusicPlay mp : musicPlayMap.values()) {
+      if (mp != null) {
+        try {
+          mp.stop();
+        } catch (Exception ignored) {}
+      }
+    }
+    musicPlayMap.clear();
+
+    for (MusicPlayer mp : musicPlayerList) {
+      if (mp != null) {
+        try {
+          mp.stop();
+        } catch (Exception ignored) {}
+      }
+    }
   }
 
   // ---------- 工具方法 ----------
@@ -106,6 +128,7 @@ public class CommandExec implements CommandExecutor, TabCompleter {
               return true;
           }
           String url = args[2];
+          int count = 0;
           for (Entity e : targets) {
               if (e instanceof Player) {
                   Player target = (Player) e;
@@ -115,9 +138,10 @@ public class CommandExec implements CommandExecutor, TabCompleter {
                   }
                   mp = new MusicPlay(url, target);
                   musicPlayMap.put(target.getUniqueId(), mp);
+                  count++;
               }
           }
-          sender.sendMessage("§a正在为 " + targets.size() + " 位玩家播放");
+          sender.sendMessage("§a正在为 " + count + " 位玩家播放");
           return true;
       }
     }
@@ -129,7 +153,7 @@ public class CommandExec implements CommandExecutor, TabCompleter {
           sender.sendMessage("§c仅玩家可用");
           return true;
         }
-        MusicPlay mp = musicPlayMap.get(p.getUniqueId());
+        MusicPlay mp = musicPlayMap.remove(p.getUniqueId());
         if (mp != null && mp.isPlay()) mp.stop();
         return true;
       } else if (args.length == 2) {
@@ -142,14 +166,18 @@ public class CommandExec implements CommandExecutor, TabCompleter {
           sender.sendMessage("§c未选中有效玩家");
           return true;
         }
+        int count = 0;
         for (Entity e : targets) {
           if (e instanceof Player) {
             Player target = (Player) e;
-            MusicPlay mp = musicPlayMap.get(target.getUniqueId());
-            if (mp != null && mp.isPlay()) mp.stop();
+            MusicPlay mp = musicPlayMap.remove(target.getUniqueId());
+            if (mp != null && mp.isPlay()) {
+              mp.stop();
+              count++;
+            }
           }
         }
-        sender.sendMessage("§a已停止 " + targets.size() + " 位玩家的播放");
+        sender.sendMessage("§a已停止 " + count + " 位玩家的播放");
         return true;
       }
     }
@@ -172,7 +200,7 @@ public class CommandExec implements CommandExecutor, TabCompleter {
         Player creator = getPlayerFromSender(sender);
         MusicPlayer mp = new MusicPlayer(name, creator);
         musicPlayerList.add(mp);
-        PlayerDataManager.saveAll(musicPlayerList);
+        savePlayers();
         int id = musicPlayerList.size() - 1;
         sender.sendMessage("§a已创建播放器 " + (name != null ? name : "未命名") + "，ID: " + id +
             (creator != null ? "（你已成为控制者）" : ""));
@@ -227,7 +255,7 @@ public class CommandExec implements CommandExecutor, TabCompleter {
         }
         mp.stop();
         musicPlayerList.remove(mp);
-        PlayerDataManager.saveAll(musicPlayerList);
+        savePlayers();
         sender.sendMessage("§a已删除播放器");
         return true;
       }
@@ -289,7 +317,7 @@ public class CommandExec implements CommandExecutor, TabCompleter {
         }
         sender.sendMessage("§a已为 " + count + " 位玩家" + (action.equals("add") ? "添加" : "移除") +
             (permType.equals("control") ? "控制" : "监听") + "权限");
-        PlayerDataManager.saveAll(musicPlayerList);
+        savePlayers();
         return true;
       }
 
@@ -358,7 +386,7 @@ public class CommandExec implements CommandExecutor, TabCompleter {
             return true;
           }
           mp.add_Playlist(args[3]);
-          PlayerDataManager.saveAll(musicPlayerList);
+          savePlayers();
           sender.sendMessage("§a已添加歌曲到播放列表");
           break;
         case "remove":
@@ -369,7 +397,7 @@ public class CommandExec implements CommandExecutor, TabCompleter {
           try {
             int id = Integer.parseInt(args[3]);
             mp.remove_Playlist(id);
-            PlayerDataManager.saveAll(musicPlayerList);
+            savePlayers();
             sender.sendMessage("§a已移除歌曲");
           } catch (NumberFormatException e) {
             sender.sendMessage("§c歌曲ID必须是数字");
@@ -408,7 +436,7 @@ public class CommandExec implements CommandExecutor, TabCompleter {
               return true;
           }
           mp.setPlayMode(mode);
-          PlayerDataManager.saveAll(musicPlayerList);
+          savePlayers();
           sender.sendMessage("§a已切换播放模式为 " + mode.name());
           break;
         default:
